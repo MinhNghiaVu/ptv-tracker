@@ -38,11 +38,6 @@ export default function RootLayout({
                   Sign In
                 </button>
               </SignInButton>
-              <SignUpButton>
-                <button className="bg-[hsl(280,100%,70%)] text-white rounded-full font-medium text-sm h-10 px-5 hover:bg-[hsl(280,100%,60%)] transition cursor-pointer">
-                  Sign Up
-                </button>
-              </SignUpButton>
             </SignedOut>
             <SignedIn>
               <UserButton />
