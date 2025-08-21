@@ -1,6 +1,9 @@
 import { clerkMiddleware } from '@clerk/nextjs/server';
+import { logger } from './utils/logger';
 
 export default clerkMiddleware();
+
+logger.info('Middleware initialized and working');
 
 export const config = {
   matcher: [
