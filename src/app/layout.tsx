@@ -34,8 +34,8 @@ export default function RootLayout({
           <header className="flex justify-end items-center p-4 gap-4 h-16 bg-gradient-to-b from-[#2e026d] to-[#15162c]">
             <SignedOut>
               <SignInButton>
-                <button className="text-white hover:text-white/80 font-medium text-sm transition">
-                  Sign In
+                <button className="bg-[hsl(280,100%,70%)] text-white rounded-full font-medium text-sm h-10 px-5 hover:bg-[hsl(280,100%,60%)] transition cursor-pointer">
+                  Sign In With Google
                 </button>
               </SignInButton>
             </SignedOut>
