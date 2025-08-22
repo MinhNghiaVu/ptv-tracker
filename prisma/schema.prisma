@@ -2,20 +2,354 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-    provider = "prisma-client-js"
+	provider = "prisma-client-js"
 }
 
 datasource db {
-    provider  = "postgresql"
-    url       = env("DATABASE_URL")
-    directUrl = env("DIRECT_URL")
+	provider  = "postgresql"
+	url       = env("DATABASE_URL")
 }
 
 model Post {
-    id        Int      @id @default(autoincrement())
-    name      String
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+	id        Int      @id @default(autoincrement())
+	name      String
+	createdAt DateTime @default(now())
+	updatedAt DateTime @updatedAt
 
-    @@index([name])
+	@@index([name])
 }
+
+// ============================================
+// MVP: JUST 3 TABLES TO START
+// ============================================
+
+// Cache PTV API responses to avoid rate limits
+model ApiCache {
+  id        String   @id @default(cuid())
+  cacheKey  String   @unique // URL hash
+  response  String   // JSON string from PTV API
+  cachedAt  DateTime @default(now())
+  expiresAt DateTime
+  
+  @@index([expiresAt])
+}
+
+// Store user's recent searches for quick access
+model RecentSearch {
+  id          String   @id @default(cuid())
+  sessionId   String   // Browser session (no login required)
+  query       String   // "86 tram", "flinders street"
+  searchType  String   // "stop_search", "route_search", "nearby"
+  resultData  String   // JSON of the results
+  searchedAt  DateTime @default(now())
+  
+  @@index([sessionId, searchedAt])
+}
+
+// Optional: Store user's current location for session
+model UserSession {
+  sessionId     String   @id
+  lastLatitude  Float?
+  lastLongitude Float?
+  lastSeen      DateTime @default(now())
+}
+
+
+/**
+// ============================================
+// CORE TRANSPORT INFRASTRUCTURE
+// ============================================
+
+model RouteType {
+  id          Int     @id
+  name        String  // "Metro Train", "Metro Tram", "Metro Bus", "Regional Train", etc.
+  stops       Stop[]
+  routes      Route[]
+  departures  Departure[]
+}
+
+model Route {
+  id              Int       @id
+  routeType       RouteType @relation(fields: [routeTypeId], references: [id])
+  routeTypeId     Int
+  routeName       String    // "86 - Bundoora RMIT to Docklands", "Cranbourne Line"
+  routeNumber     String?   // "86", "58", null for train lines
+  routeGtfsId     String?   // GTFS identifier
+  directions      Direction[]
+  stops           StopRoute[]
+  departures      Departure[]
+  disruptions     RouteDisruption[]
+  
+  @@index([routeTypeId])
+  @@index([routeNumber])
+}
+
+model Direction {
+  id            Int      @id
+  route         Route    @relation(fields: [routeId], references: [id])
+  routeId       Int
+  directionId   Int      // PTV direction ID (usually 0 or 1)
+  directionName String   // "City (Flinders Street)", "Bundoora RMIT"
+  departures    Departure[]
+  
+  @@unique([routeId, directionId])
+}
+
+// ============================================
+// STOPS SYSTEM
+// ============================================
+
+model Stop {
+  id                Int         @id
+  routeType         RouteType   @relation(fields: [routeTypeId], references: [id])
+  routeTypeId       Int
+  stopName          String
+  stopSuburb        String?
+  stopLatitude      Float
+  stopLongitude     Float
+  stopSequence      Int?        // Order along route
+  
+  // Platform/Infrastructure info
+  stopLandmark      String?     // "Near Flinders Street Station"
+  stopStreet        String?
+  stopMunicipality  String?
+  ticketZone        String?     // "Zone 1", "Zone 2", etc.
+  
+  // Accessibility
+  wheelchairAccess  Boolean     @default(false)
+  stopInfra         String?     // "Shelter", "Seating", etc.
+  
+  // Relationships
+  routes            StopRoute[]
+  departures        Departure[]
+  disruptions       StopDisruption[]
+  userFavorites     UserFavoriteStop[]
+  
+  // Metadata
+  lastUpdated       DateTime    @default(now())
+  
+  @@index([routeTypeId])
+  @@index([stopLatitude, stopLongitude]) // For location queries
+  @@index([stopName])
+  @@index([stopSuburb])
+}
+
+// Junction table for stops and routes (many-to-many)
+model StopRoute {
+  id          String @id @default(cuid())
+  stop        Stop   @relation(fields: [stopId], references: [id])
+  stopId      Int
+  route       Route  @relation(fields: [routeId], references: [id])
+  routeId     Int
+  stopSequence Int?  // Order of this stop on this route
+  
+  @@unique([stopId, routeId])
+}
+
+// ============================================
+// REAL-TIME DEPARTURES
+// ============================================
+
+model Departure {
+  id                String      @id @default(cuid())
+  
+  // Core identifiers
+  stop              Stop        @relation(fields: [stopId], references: [id])
+  stopId            Int
+  route             Route       @relation(fields: [routeId], references: [id])
+  routeId           Int
+  routeType         RouteType   @relation(fields: [routeTypeId], references: [id])
+  routeTypeId       Int
+  direction         Direction   @relation(fields: [directionId], references: [id])
+  directionId       Int
+  
+  // Timing information
+  scheduledTime     DateTime    // Original timetabled departure
+  estimatedTime     DateTime?   // Real-time estimate (null if on time)
+  
+  // Service details
+  runRef            String?     // PTV run reference
+  vehiclePosition   Json?       // Real-time vehicle location data
+  flags             String[]    // ["RealTime", "Wheelchair", "LowFloor", etc.]
+  
+  // Platform/Bay info for train stations
+  platformNumber    String?     // "Platform 1", "Bay 3"
+  
+  // Data freshness
+  cachedAt          DateTime    @default(now())
+  atPlatform        Boolean     @default(false)
+  
+  @@index([stopId, scheduledTime])
+  @@index([routeId, scheduledTime])
+  @@index([cachedAt])
+  @@unique([stopId, routeId, directionId, scheduledTime, runRef])
+}
+
+// ============================================
+// DISRUPTIONS & ALERTS
+// ============================================
+
+model Disruption {
+  id              String    @id @default(cuid())
+  disruptionId    String    @unique // PTV disruption ID
+  title           String
+  description     String?
+  url             String?   // Link to more info
+  disruptionType  String    // "planned_works", "major_event", "unplanned_outage"
+  disruptionStatus String   // "Current", "Planned", "Ended"
+  publishedOn     DateTime?
+  lastUpdated     DateTime
+  fromDate        DateTime?
+  toDate          DateTime?
+  
+  // Affected services
+  routes          RouteDisruption[]
+  stops           StopDisruption[]
+  
+  // Metadata
+  colour          String?   // Hex color for display
+  displayOnBoard  Boolean   @default(true)
+  displayStatus   String    @default("Live")
+  
+  @@index([disruptionStatus])
+  @@index([fromDate, toDate])
+}
+
+model RouteDisruption {
+  id            String     @id @default(cuid())
+  disruption    Disruption @relation(fields: [disruptionId], references: [id], onDelete: Cascade)
+  disruptionId  String
+  route         Route      @relation(fields: [routeId], references: [id])
+  routeId       Int
+  
+  @@unique([disruptionId, routeId])
+}
+
+model StopDisruption {
+  id            String     @id @default(cuid())
+  disruption    Disruption @relation(fields: [disruptionId], references: [id], onDelete: Cascade)
+  disruptionId  String
+  stop          Stop       @relation(fields: [stopId], references: [id])
+  stopId        Int
+  
+  @@unique([disruptionId, stopId])
+}
+
+// ============================================
+// USER FEATURES (Optional for MVP)
+// ============================================
+
+model User {
+  id            String      @id @default(cuid())
+  email         String?     @unique
+  name          String?
+  image         String?
+  
+  // User preferences
+  preferredRouteTypes Int[]  // [0, 1] for trains and trams only
+  homeLatitude  Float?
+  homeLongitude Float?
+  workLatitude  Float?
+  workLongitude Float?
+  
+  favorites     UserFavoriteStop[]
+  searches      UserSearch[]
+  
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  
+  // NextAuth.js fields
+  accounts      Account[]
+  sessions      Session[]
+}
+
+model UserFavoriteStop {
+  id          String   @id @default(cuid())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  stop        Stop     @relation(fields: [stopId], references: [id])
+  stopId      Int
+  nickname    String?  // "Home", "Work", "Gym"
+  routeFilter Int[]    // Only show these route types at this stop
+  createdAt   DateTime @default(now())
+  
+  @@unique([userId, stopId])
+}
+
+model UserSearch {
+  id          String   @id @default(cuid())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  query       String
+  resultType  String   // "stop", "route", "location"
+  resultData  Json     // Store the search results for quick access
+  searchedAt  DateTime @default(now())
+  
+  @@index([userId, searchedAt])
+}
+
+// ============================================
+// CACHING & PERFORMANCE
+// ============================================
+
+model ApiCache {
+  id          String   @id @default(cuid())
+  cacheKey    String   @unique // Hash of the API endpoint + params
+  endpoint    String   // "/v3/departures/route_type/1/stop/1234"
+  response    Json     // Cached API response
+  cachedAt    DateTime @default(now())
+  expiresAt   DateTime
+  
+  @@index([expiresAt])
+  @@index([endpoint])
+}
+
+// Data freshness tracking
+model DataSync {
+  id          String   @id @default(cuid())
+  dataType    String   @unique // "stops", "routes", "disruptions"
+  lastSync    DateTime
+  syncStatus  String   // "success", "partial", "failed"
+  recordCount Int?
+  errorLog    String?
+}
+
+// ============================================
+// NEXTAUTH.JS SETUP (if using authentication)
+// ============================================
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+**/
