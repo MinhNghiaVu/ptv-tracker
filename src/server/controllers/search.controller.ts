@@ -1,22 +1,18 @@
 import { logger } from "~/utils/logger";
-import { PTVApiService } from "~/server/services/ptv.service";
+import type { ProcessedStop, Stop } from "../interfaces/stop.interface";
+import { searchStops as ptvSearchStops } from "../services/ptv.service";
 
 // ==============================
 // SEARCH CONTROLLER
 // ==============================
-const ptvApiService = new PTVApiService();
 
-  /**
-   * SIMPLIFIED APPROACH:
-   * Validate and sanitise input
-   * -> Call PTV API
-   * -> Process and return results
-   */
-export async function searchStops(input: { query: string; limit: number }): Promise<{
-  stops: any[];
+export async function searchStops(input: { query: string; limit?: number }): Promise<{
+  stops: ProcessedStop[];
   totalCount: number;
 }> {
   try {
+    const limit = input.limit ?? 50; // Provide default if undefined
+    
     // Sanitise and validate search query
     const sanitisedQuery = sanitiseSearchQuery(input.query);
 
@@ -31,10 +27,10 @@ export async function searchStops(input: { query: string; limit: number }): Prom
     logger.info(`[SEARCH_CONTROLLER] Processing stop search: "${sanitisedQuery}"`);
 
     // Call PTV API service to get stops
-    const ptvResults = await ptvApiService.searchStops(sanitisedQuery);
+    const ptvResults = await ptvSearchStops(sanitisedQuery);
 
     // Process results
-    const processedStops = processStopResults(ptvResults.stops, input.limit);
+    const processedStops = processStopResults(ptvResults.stops, limit);
 
     // Return formatted results
     const result = {
@@ -55,12 +51,6 @@ export async function searchStops(input: { query: string; limit: number }): Prom
 // PRIVATE HELPER METHODS
 // ============================================
 
-/**
- * Basic sanitisation
- * - Remove dangerous characters
- * - Normalise whitespace
- * - Convert to consistent case
- */
 function sanitiseSearchQuery(query: string): string {
   return query
     .trim()
@@ -70,49 +60,40 @@ function sanitiseSearchQuery(query: string): string {
     .replace(/^[\s\-]+|[\s\-]+$/g, ''); // Remove leading/trailing spaces and hyphens
 }
 
-  /**
-   * Process stop results:
-   * - Transform PTV format to our format
-   * - Remove duplicates based on stop ID
-   * - Sort by name
-   * - Apply result limit
-   * - Filter out invalid stops
-   */
-  private processStopResults(stops: any[], limit: number) {
-    if (!Array.isArray(stops)) {
-      logger.warn(`[SEARCH_CONTROLLER] Expected array of stops, got: ${typeof stops}`);
-      return [];
-    }
-
-    return stops
-      .map(stop => {
-        // Transform PTV API format to our standard format
-        try {
-          return {
-            id: parseInt(stop.stop_id) || 0,
-            name: stop.stop_name || 'Unknown Stop',
-            suburb: stop.stop_suburb || null,
-            routeType: parseInt(stop.route_type) || 0,
-            latitude: parseFloat(stop.stop_latitude) || 0,
-            longitude: parseFloat(stop.stop_longitude) || 0,
-          };
-        } catch (error) {
-          logger.warn(`[SEARCH_CONTROLLER] Failed to transform stop data: ${error}`, stop);
-          return null;
-        }
-      })
-      .filter((stop): stop is NonNullable<typeof stop> => {
-        // Filter out invalid stops
-        return stop !== null && stop.id > 0 && stop.name !== 'Unknown Stop';
-      })
-      .filter((stop, index, array) => {
-        // Remove duplicates based on stop ID
-        return array.findIndex(s => s.id === stop.id) === index;
-      })
-      .sort((a, b) => {
-        // Sort by name for better user experience
-        return a.name.localeCompare(b.name);
-      })
-      .slice(0, limit); // Apply limit
+function processStopResults(stops: Stop[], limit: number): ProcessedStop[] {
+  if (!Array.isArray(stops)) {
+    logger.warn(`[SEARCH_CONTROLLER] Expected array of stops, got: ${typeof stops}`);
+    return [];
   }
-};
+
+  return stops
+    .map(stop => {
+      // Transform PTV API format to our standard format
+      try {
+        return {
+          id: stop.stop_id, // Already a number from interface
+          name: stop.stop_name || 'Unknown Stop',
+          suburb: stop.stop_suburb || null,
+          routeType: stop.route_type, // Already a number from interface
+          latitude: stop.stop_latitude, // Already a number from interface
+          longitude: stop.stop_longitude, // Already a number from interface
+        };
+      } catch (error) {
+        logger.warn(`[SEARCH_CONTROLLER] Failed to transform stop ${stop.stop_id}'s data: ${error}`);
+        return null;
+      }
+    })
+    .filter((stop): stop is ProcessedStop => {
+      // Filter out invalid stops
+      return stop !== null && stop.id > 0 && stop.name !== 'Unknown Stop';
+    })
+    .filter((stop, index, array) => {
+      // Remove duplicates based on stop ID
+      return array.findIndex(s => s.id === stop.id) === index;
+    })
+    .sort((a, b) => {
+      // Sort by name for better user experience
+      return a.name.localeCompare(b.name);
+    })
+    .slice(0, limit); // Apply limit
+}

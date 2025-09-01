@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/restrict-template-expressions */
-
 import { logger } from "~/utils/logger";
 import type { Stop } from "~/server/interfaces/stop.interface";
 import type { Departure } from "~/server/interfaces/departure.interface";
