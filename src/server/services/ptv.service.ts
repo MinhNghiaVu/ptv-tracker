@@ -1,9 +1,9 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/restrict-template-expressions */
+/* eslint-disable @typescript-eslint/restrict-template-expressions */
 
 import { logger } from "~/utils/logger";
-import type { StopInterface } from "~/server/interfaces/stop.interface";
-import type { DepartureInterface } from "~/server/interfaces/departure.interface";
-import type { RouteInterface } from "~/server/interfaces/route.interface";
+import type { Stop } from "~/server/interfaces/stop.interface";
+import type { Departure } from "~/server/interfaces/departure.interface";
+import type { Route } from "~/server/interfaces/route.interface";
 
 // ==============================
 // PTV SERVICE
@@ -15,7 +15,7 @@ import type { RouteInterface } from "~/server/interfaces/route.interface";
  * SEARCH STOPS
  */
 export async function searchStops(query: string): Promise<{
-  stops: StopInterface[];
+  stops: Stop[];
   totalCount: number;
 }> {
   try {
@@ -36,7 +36,7 @@ export async function searchStops(query: string): Promise<{
  * GET DEPARTURES
  */
 export async function getDepartures(stopId: number, routeType?: number): Promise<{
-  departures: DepartureInterface[];
+  departures: Departure[];
 }> {
   try {
     logger.info(`[PTV_SERVICE] Getting departures for stop: ${stopId}`);
@@ -56,7 +56,7 @@ export async function getDepartures(stopId: number, routeType?: number): Promise
 // PRIVATE FUNCTIONS 
 // ==============================
 
-async function makeStopsSearchApiCall(query: string): Promise<{ stops: StopInterface[] }> {
+async function makeStopsSearchApiCall(query: string): Promise<{ stops: Stop[] }> {
   try {
     logger.info(`[PTV_SERVICE] Using mock data for development`);
     return getMockStopsData(query);
@@ -66,18 +66,18 @@ async function makeStopsSearchApiCall(query: string): Promise<{ stops: StopInter
   }
 }
 
-async function makeDeparturesApiCall(stopId: number, routeType?: number): Promise<{ departures: DepartureInterface[] }> {
+async function makeDeparturesApiCall(stopId: number, routeType?: number): Promise<{ departures: Departure[] }> {
   logger.info(`[PTV_SERVICE] Using mock departures data for development`);
   return getMockDeparturesData(stopId, routeType);
 }
 
-function transformStopsResponse(apiResponse: { stops: StopInterface[] }): { 
-  stops: StopInterface[]; 
+function transformStopsResponse(apiResponse: { stops: Stop[] }): { 
+  stops: Stop[]; 
   totalCount: number; 
 } {
   const stops = apiResponse.stops || [];
   
-  const transformedStops: StopInterface[] = stops.map(stop => ({
+  const transformedStops: Stop[] = stops.map(stop => ({
     stop_id: stop.stop_id,
     stop_name: stop.stop_name,
     stop_suburb: stop.stop_suburb,
@@ -92,8 +92,8 @@ function transformStopsResponse(apiResponse: { stops: StopInterface[] }): {
   };
 }
 
-function transformDeparturesResponse(apiResponse: { departures: DepartureInterface[] }): { 
-  departures: DepartureInterface[]; 
+function transformDeparturesResponse(apiResponse: { departures: Departure[] }): { 
+  departures: Departure[]; 
 } {
   const departures = apiResponse.departures || [];
   
@@ -113,8 +113,8 @@ function transformDeparturesResponse(apiResponse: { departures: DepartureInterfa
 // MOCK DATA - Now properly typed
 // ==============================
 
-function getMockStopsData(query: string): { stops: StopInterface[] } {
-  const allMockStops: StopInterface[] = [
+function getMockStopsData(query: string): { stops: Stop[] } {
+  const allMockStops: Stop[] = [
     // TRAIN STATIONS
     {
       stop_id: 1071,
@@ -465,7 +465,7 @@ function getMockStopsData(query: string): { stops: StopInterface[] } {
   return { stops: searchResults };
 }
 
-function calculateSearchScore(stop: StopInterface, query: string): number {
+function calculateSearchScore(stop: Stop, query: string): number {
   const stopName = stop.stop_name.toLowerCase();
   const stopSuburb = stop.stop_suburb.toLowerCase();
   const queryWords = query.split(/\s+/);
@@ -491,7 +491,7 @@ function calculateSearchScore(stop: StopInterface, query: string): number {
   return score;
 }
 
-function getMockDeparturesData(stopId: number, routeType?: number): { departures: DepartureInterface[] } {
+function getMockDeparturesData(stopId: number, routeType?: number): { departures: Departure[] } {
   const stop = getStopById(stopId);
   if (!stop) {
     return { departures: [] };
@@ -505,15 +505,15 @@ function getMockDeparturesData(stopId: number, routeType?: number): { departures
   return { departures: mockDepartures };
 }
 
-function getStopById(stopId: number): StopInterface | undefined {
+function getStopById(stopId: number): Stop | undefined {
   const allStopsResponse = getMockStopsData("");
   return allStopsResponse.stops.find(stop => stop.stop_id === stopId);
 }
 
-function getRoutesByStop(stopId: number, routeType?: number): RouteInterface[] {
+function getRoutesByStop(stopId: number, routeType?: number): Route[] {
   // TRAIN STATIONS (route_type: 0)
   if (routeType === 0) {
-    const trainRoutes: Record<number, RouteInterface[]> = {
+    const trainRoutes: Record<number, Route[]> = {
       1071: [ // Flinders Street Station
         { route_id: 1, route_name: "Cranbourne", route_type: 0, stops: [] },
         { route_id: 2, route_name: "Pakenham", route_type: 0, stops: [] },
@@ -632,7 +632,7 @@ function getRoutesByStop(stopId: number, routeType?: number): RouteInterface[] {
 
   // BUS STOPS (route_type: 2)
   if (routeType === 2) {
-    const busRoutes: Record<number, RouteInterface[]> = {
+    const busRoutes: Record<number, Route[]> = {
       7001: [ // QV Centre
         { route_id: 200, route_name: "200", route_type: 2, stops: [] },
         { route_id: 216, route_name: "216", route_type: 2, stops: [] },
@@ -660,7 +660,7 @@ function getRoutesByStop(stopId: number, routeType?: number): RouteInterface[] {
   return [];
 }
 
-function generateDeparturesForRoute(route: RouteInterface, stopId: number): DepartureInterface[] {
+function generateDeparturesForRoute(route: Route, stopId: number): Departure[] {
   const departureTimes = [5, 12, 19]; // 5, 12, 19 minutes from now
   
   return departureTimes.map((minutes, index) => {
@@ -683,7 +683,7 @@ function generateDeparturesForRoute(route: RouteInterface, stopId: number): Depa
   });
 }
 
-function getDirectionName(route: RouteInterface, stopId: number): string {
+function getDirectionName(route: Route, stopId: number): string {
   // Simple direction mapping based on route and transport type
   const directions: Record<number, string> = {
     1: "Cranbourne",
