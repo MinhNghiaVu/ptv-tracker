@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import { TRPCError } from "@trpc/server";
 import { logger } from "~/utils/logger";
-import { SearchController } from "~/server/controllers/search.controller";
+import { searchStops } from "~/server/controllers/search.controller"; // Import function directly
 
 // ==============================
 // INPUT/OUTPUT SCHEMAS (Data Transfer Objects)
@@ -53,13 +53,16 @@ export const searchRouter = createTRPCRouter({
       const startTime = Date.now();
       
       try {
-        logger.info(`[SEARCH] Stop search initiated: "${input.query}"`);
+        logger.info(`[SEARCH_ROUTER] Stop search initiated: "${input.query}"`);
         
-        const controller = new SearchController();
-        const result = await controller.searchStops(input);
+        // Call the functional controller directly
+        const result = await searchStops({
+          query: input.query,
+          limit: input.limit,
+        });
         
         const duration = Date.now() - startTime;
-        logger.info(`[SEARCH] Stop search completed in ${duration}ms`);
+        logger.info(`[SEARCH_ROUTER] Stop search completed in ${duration}ms`);
         
         return {
           ...result,
@@ -69,12 +72,13 @@ export const searchRouter = createTRPCRouter({
       } catch (error) {
         const duration = Date.now() - startTime;
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        logger.error(`[SEARCH] Stop search failed after ${duration}ms: ${errorMessage}`);
+        logger.error(`[SEARCH_ROUTER] Stop search failed after ${duration}ms: ${errorMessage}`);
         
-        // Simple error response
+        // Return a user-friendly error
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
           message: 'Search failed. Please try again.',
+          cause: error,
         });
       }
     })
