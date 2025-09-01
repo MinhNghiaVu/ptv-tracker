@@ -71,7 +71,7 @@ export const searchRouter = createTRPCRouter({
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         logger.error(`[SEARCH] Stop search failed after ${duration}ms: ${errorMessage}`);
         
-        // Simple error response - no need for different error types
+        // Simple error response
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
           message: 'Search failed. Please try again.',
