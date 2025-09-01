@@ -10,15 +10,12 @@ import { SearchController } from "~/server/controllers/search.controller";
 
 /**
  * Schema for stop search input validation
- * This ensures we receive valid data from the frontend
  */
 const stopSearchInputSchema = z.object({
   query: z.string()
     .min(1, "Search query cannot be empty")
     .max(100, "Search query too long")
     .trim(),
-  sessionId: z.string()
-    .min(1, "Session ID required"),
   limit: z.number()
     .min(1, "Limit must be at least 1")
     .max(50, "Limit cannot exceed 50")
@@ -27,7 +24,6 @@ const stopSearchInputSchema = z.object({
 
 /**
  * Schema for stop search output validation
- * This ensures we return consistent data structure
  */
 const stopSearchOutputSchema = z.object({
   stops: z.array(z.object({
@@ -39,43 +35,26 @@ const stopSearchOutputSchema = z.object({
     longitude: z.number(),
   })),
   totalCount: z.number(),
-  cached: z.boolean(),
   searchTime: z.number(), // milliseconds
 });
-
-/**
- * Schema for recent searches output
- */
-const recentSearchesOutputSchema = z.array(z.object({
-  id: z.string(),
-  query: z.string(),
-  searchType: z.string(),
-  searchedAt: z.date(),
-  resultPreview: z.object({
-    topResult: z.string().nullable(),
-    resultCount: z.number(),
-  }),
-}));
 
 // ==============================
 // SEARCH ROUTER
 // ==============================
 
 export const searchRouter = createTRPCRouter({
-  /** STOPS SEARCH ENDPOINT - /api/trpc/search.stops
-   * This endpoint allows users to search for stops based on various criteria.
+  /** 
+   * STOPS SEARCH ENDPOINT - /api/trpc/search.stops
    */
   stops: publicProcedure
     .input(stopSearchInputSchema)
     .output(stopSearchOutputSchema)
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       const startTime = Date.now();
       
       try {
-        logger.info(`[SEARCH] Stop search initiated: "${input.query}" (session: ${input.sessionId})`);
+        logger.info(`[SEARCH] Stop search initiated: "${input.query}"`);
         
-        // Delegate to controller layer
-        // Controller handles business logic and coordinates services
         const controller = new SearchController();
         const result = await controller.searchStops(input);
         
@@ -89,52 +68,16 @@ export const searchRouter = createTRPCRouter({
         
       } catch (error) {
         const duration = Date.now() - startTime;
-        logger.error(`[SEARCH] Stop search failed after ${duration}ms: ${error}`);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        logger.error(`[SEARCH] Stop search failed after ${duration}ms: ${errorMessage}`);
         
-        // Convert internal errors to user-friendly tRPC errors
-        if (error instanceof Error) {
-          throw new TRPCError({
-            code: 'INTERNAL_SERVER_ERROR',
-            message: 'Search failed. Please try again.',
-            cause: error,
-          });
-        }
-        
+        // Simple error response - no need for different error types
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
-          message: 'An unexpected error occurred',
+          message: 'Search failed. Please try again.',
         });
       }
-    }),
-
-  /**
-   * RECENT SEARCHES ENDPOINT - /api/trpc/search.recentSearches
-   * Retrieves user's recent searches for quick access
-   */
-  recentSearches: publicProcedure
-    .input(z.object({
-      sessionId: z.string().min(1, "Session ID required"),
-      limit: z.number().min(1).max(20).default(10),
-    }))
-    .output(recentSearchesOutputSchema)
-    .query(async ({ input }) => {
-      try {
-        logger.info(`[SEARCH] Fetching recent searches for session: ${input.sessionId}`);
-        
-        const controller = new SearchController();
-        const recentSearches = await controller.getRecentSearches(input);
-        
-        logger.info(`[SEARCH] Found ${recentSearches.length} recent searches`);
-        return recentSearches;
-        
-      } catch (error) {
-        logger.error(`[SEARCH] Failed to fetch recent searches: ${error}`);
-        
-        // For recent searches, we can fail gracefully and return empty array
-        // This is not critical functionality
-        return [];
-      }
-    }),
+    })
 });
 
 // Export types for use in frontend
