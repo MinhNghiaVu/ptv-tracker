@@ -2,7 +2,7 @@ import { logger } from "~/utils/logger";
 import { PTVApiService } from "~/server/services/ptv.service";
 
 // ==============================
-// SIMPLIFIED SEARCH CONTROLLER
+// SEARCH CONTROLLER
 // ==============================
 export class SearchController {
   private ptvApiService: PTVApiService;
