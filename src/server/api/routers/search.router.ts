@@ -4,9 +4,9 @@ import { TRPCError } from "@trpc/server";
 import { logger } from "~/utils/logger";
 import { SearchController } from "~/server/controllers/search.controller";
 
-// ============================================
+// ==============================
 // INPUT/OUTPUT SCHEMAS (Data Transfer Objects)
-// ============================================
+// ==============================
 
 /**
  * Schema for stop search input validation
@@ -57,9 +57,9 @@ const recentSearchesOutputSchema = z.array(z.object({
   }),
 }));
 
-// ============================================
-// TRPC ROUTER DEFINITION
-// ============================================
+// ==============================
+// SEARCH ROUTER
+// ==============================
 
 export const searchRouter = createTRPCRouter({
   /** STOPS SEARCH ENDPOINT - /api/trpc/search.stops
@@ -110,11 +110,6 @@ export const searchRouter = createTRPCRouter({
   /**
    * RECENT SEARCHES ENDPOINT - /api/trpc/search.recentSearches
    * Retrieves user's recent searches for quick access
-   * 
-   * Example usage:
-   * const recent = await api.search.recentSearches.useQuery({
-   *   sessionId: "abc123"
-   * });
    */
   recentSearches: publicProcedure
     .input(z.object({
