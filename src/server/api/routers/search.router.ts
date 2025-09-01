@@ -62,7 +62,9 @@ const recentSearchesOutputSchema = z.array(z.object({
 // ============================================
 
 export const searchRouter = createTRPCRouter({
-  // STOPS SEARCH ENDPOINT
+  /** STOPS SEARCH ENDPOINT - /api/trpc/search.stops
+   * This endpoint allows users to search for stops based on various criteria.
+   */
   stops: publicProcedure
     .input(stopSearchInputSchema)
     .output(stopSearchOutputSchema)
@@ -106,7 +108,7 @@ export const searchRouter = createTRPCRouter({
     }),
 
   /**
-   * RECENT SEARCHES ENDPOINT
+   * RECENT SEARCHES ENDPOINT - /api/trpc/search.recentSearches
    * Retrieves user's recent searches for quick access
    * 
    * Example usage:
