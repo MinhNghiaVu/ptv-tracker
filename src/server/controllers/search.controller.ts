@@ -4,13 +4,7 @@ import { PTVApiService } from "~/server/services/ptv.service";
 // ==============================
 // SEARCH CONTROLLER
 // ==============================
-export class SearchController {
-  private ptvApiService: PTVApiService;
-  
-  constructor() {
-    // Only need PTV service
-    this.ptvApiService = new PTVApiService();
-  }
+const ptvApiService = new PTVApiService();
 
   /**
    * SIMPLIFIED APPROACH:
@@ -18,63 +12,63 @@ export class SearchController {
    * -> Call PTV API
    * -> Process and return results
    */
-  async searchStops(input: { query: string; limit: number }): Promise<{
-    stops: any[];
-    totalCount: number;
-  }> {
-    try {
-      // Sanitise and validate search query
-      const sanitisedQuery = this.sanitiseSearchQuery(input.query);
+export async function searchStops(input: { query: string; limit: number }): Promise<{
+  stops: any[];
+  totalCount: number;
+}> {
+  try {
+    // Sanitise and validate search query
+    const sanitisedQuery = sanitiseSearchQuery(input.query);
 
-      if (sanitisedQuery.length < 2) {
-        logger.warn(`[SEARCH_CONTROLLER] Search query too short after sanitisation: "${input.query}"`);
-        return {
-          stops: [],
-          totalCount: 0,
-        };
-      }
-
-      logger.info(`[SEARCH_CONTROLLER] Processing stop search: "${sanitisedQuery}"`);
-
-      // Call PTV API service to get stops
-      const ptvResults = await this.ptvApiService.searchStops(sanitisedQuery);
-
-      // Process results
-      const processedStops = this.processStopResults(ptvResults.stops, input.limit);
-
-      // Return formatted results
-      const result = {
-        stops: processedStops,
-        totalCount: ptvResults.totalCount || processedStops.length,
+    if (sanitisedQuery.length < 2) {
+      logger.warn(`[SEARCH_CONTROLLER] Search query too short after sanitisation: "${input.query}"`);
+      return {
+        stops: [],
+        totalCount: 0,
       };
-
-      logger.info(`[SEARCH_CONTROLLER] Search completed: ${processedStops.length} stops found`);
-      return result;
-
-    } catch (error) {
-      logger.error(`[SEARCH_CONTROLLER] Search stops failed: ${error}`);
-      throw error;
     }
-  }
 
-  // ============================================
-  // PRIVATE HELPER METHODS
-  // ============================================
+    logger.info(`[SEARCH_CONTROLLER] Processing stop search: "${sanitisedQuery}"`);
 
-  /**
-   * Basic sanitisation
-   * - Remove dangerous characters
-   * - Normalise whitespace
-   * - Convert to consistent case
-   */
-  private sanitiseSearchQuery(query: string): string {
-    return query
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9\s\-']/gi, '') // Keep letters, numbers, spaces, hyphens, apostrophes
-      .replace(/\s+/g, ' ') // Normalise multiple spaces to single space
-      .replace(/^[\s\-]+|[\s\-]+$/g, ''); // Remove leading/trailing spaces and hyphens
+    // Call PTV API service to get stops
+    const ptvResults = await ptvApiService.searchStops(sanitisedQuery);
+
+    // Process results
+    const processedStops = processStopResults(ptvResults.stops, input.limit);
+
+    // Return formatted results
+    const result = {
+      stops: processedStops,
+      totalCount: ptvResults.totalCount || processedStops.length,
+    };
+
+    logger.info(`[SEARCH_CONTROLLER] Search completed: ${processedStops.length} stops found`);
+    return result;
+
+  } catch (error) {
+    logger.error(`[SEARCH_CONTROLLER] Search stops failed: ${error}`);
+    throw error;
   }
+}
+
+// ============================================
+// PRIVATE HELPER METHODS
+// ============================================
+
+/**
+ * Basic sanitisation
+ * - Remove dangerous characters
+ * - Normalise whitespace
+ * - Convert to consistent case
+ */
+function sanitiseSearchQuery(query: string): string {
+  return query
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s\-']/gi, '') // Keep letters, numbers, spaces, hyphens, apostrophes
+    .replace(/\s+/g, ' ') // Normalise multiple spaces to single space
+    .replace(/^[\s\-]+|[\s\-]+$/g, ''); // Remove leading/trailing spaces and hyphens
+}
 
   /**
    * Process stop results:

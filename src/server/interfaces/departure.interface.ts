@@ -1,4 +1,4 @@
-export interface DepartureInterface {
+export interface Departure {
   route_id: number;
   route_name: string;
   direction_name: string;
