@@ -6,3 +6,14 @@ export interface Departure {
   estimated_departure_utc: string;
   platform_number: string;
 };
+
+export interface ProcessedDeparture {
+  routeId: number;
+  routeName: string;
+  directionName: string;
+  scheduledDepartureUtc: string;
+  estimatedDepartureUtc: string;
+  platformNumber: string | null;
+  minutesUntilDeparture: number;
+  isDelayed: boolean;
+};

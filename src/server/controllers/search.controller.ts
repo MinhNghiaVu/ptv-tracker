@@ -79,7 +79,7 @@ function processStopResults(stops: Stop[], limit: number): ProcessedStop[] {
           longitude: stop.stop_longitude, // Already a number from interface
         };
       } catch (error) {
-        logger.warn(`[SEARCH_CONTROLLER] Failed to transform stop ${stop.stop_id}'s data: ${error}`);
+        logger.warn(`[SEARCH_CONTROLLER] Failed to transform stop ${stop.stop_name}'s data: ${error}`);
         return null;
       }
     })
