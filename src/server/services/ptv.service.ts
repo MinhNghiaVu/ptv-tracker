@@ -1,109 +1,81 @@
 import { logger } from "~/utils/logger";
 import type { Stop } from "~/server/interfaces/stop.interface";
 import type { Departure } from "~/server/interfaces/departure.interface";
-import type { Route } from "~/server/interfaces/route.interface";
+import crypto from "crypto";
 
-// ==============================
-// PTV SERVICE
-// ==============================
-
-// const baseUrl = 'https://timetableapi.ptv.vic.gov.au';
+const PTV_USER_ID = process.env.PTV_USER_ID!;
+const PTV_API_KEY = process.env.PTV_API_KEY!;
+const PTV_BASE_URL = process.env.PTV_BASE_URL ?? 'https://timetableapi.ptv.vic.gov.au';
 
 /**
- * SEARCH STOPS
+ * Search for stops using PTV API
  */
-export async function searchStops(query: string): Promise<{
-  stops: Stop[];
-  totalCount: number;
-}> {
+export async function searchStopsApi(query: string): Promise<{ stops: Stop[] }> {
   try {
-    logger.info(`[PTV_SERVICE] Searching stops for: "${query}"`);
+    // Check if we have API credentials
+    if (!PTV_USER_ID || !PTV_API_KEY) {
+      logger.warn(`[PTV_SERVICE] No PTV API credentials found`);
+      return { stops: [] };
+    }
+
+    // Build endpoint with query
+    const endpoint = `/v3/search/${encodeURIComponent(query)}`;
+    const data = await makePtvRequest(endpoint);
     
-    const apiResponse = await makeStopsSearchApiCall(query);
-    const transformedResult = transformStopsResponse(apiResponse);
+    logger.info(`[PTV_SERVICE] PTV API returned ${data.stops?.length ?? 0} stops for "${query}"`);
     
-    return transformedResult;
+    // PTV API returns stops in data.stops array
+    return {
+      stops: data.stops ?? []
+    };
 
   } catch (error) {
-    logger.error(`[PTV_SERVICE] Stops search failed for "${query}": ${error}`);
-    throw new Error(`Failed to search stops: ${error}`);
+    logger.error(`[PTV_SERVICE] PTV API call failed: ${error}`);
   }
 }
 
 /**
- * GET DEPARTURES
+ * Make authenticated request to PTV API
  */
-export async function getDepartures(stopId: number, routeType?: number): Promise<{
-  departures: Departure[];
-}> {
-  try {
-    logger.info(`[PTV_SERVICE] Getting departures for stop: ${stopId}`);
-
-    const apiResponse = await makeDeparturesApiCall(stopId, routeType);
-    const transformedResult = transformDeparturesResponse(apiResponse);
-
-    return transformedResult;
-
-  } catch (error) {
-    logger.error(`[PTV_SERVICE] Departures failed for stop ${stopId}: ${error}`);
-    throw new Error(`Failed to get departures: ${error}`);
-  }
-}
-
-// ==============================
-// PRIVATE FUNCTIONS 
-// ==============================
-
-async function makeStopsSearchApiCall(query: string): Promise<{ stops: Stop[] }> {
-  try {
-    logger.info(`[PTV_SERVICE] Using mock data for development`);
-    return getMockStopsData(query);
-  } catch (error) {
-    logger.error(`[PTV_SERVICE] API call failed: ${error}`);
-    throw error;
-  }
-}
-
-async function makeDeparturesApiCall(stopId: number, routeType?: number): Promise<{ departures: Departure[] }> {
-  logger.info(`[PTV_SERVICE] Using mock departures data for development`);
-  return getMockDeparturesData(stopId, routeType);
-}
-
-function transformStopsResponse(apiResponse: { stops: Stop[] }): { 
-  stops: Stop[]; 
-  totalCount: number; 
-} {
-  const stops = apiResponse.stops || [];
+async function makePtvRequest(endpoint: string): Promise<any> {
+  const url = buildPtvUrl(endpoint);
   
-  const transformedStops: Stop[] = stops.map(stop => ({
-    stop_id: stop.stop_id,
-    stop_name: stop.stop_name,
-    stop_suburb: stop.stop_suburb,
-    route_type: stop.route_type,
-    stop_latitude: stop.stop_latitude,
-    stop_longitude: stop.stop_longitude,
-  }));
-
-  return {
-    stops: transformedStops,
-    totalCount: stops.length,
-  };
-}
-
-function transformDeparturesResponse(apiResponse: { departures: Departure[] }): { 
-  departures: Departure[]; 
-} {
-  const departures = apiResponse.departures || [];
+  logger.info(`[PTV_SERVICE] Making request to: ${endpoint}`);
   
-  return {
-    departures: departures.map(dep => ({
-      route_id: dep.route_id,
-      route_name: dep.route_name,
-      direction_name: dep.direction_name,
-      scheduled_departure_utc: dep.scheduled_departure_utc,
-      estimated_departure_utc: dep.estimated_departure_utc,
-      platform_number: dep.platform_number,
-    })),
-  };
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+      'User-Agent': 'PTV-Tracker/1.0',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`PTV API error: ${response.status} ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  return data;
 }
 
+/**
+ * Generate PTV API signature for authentication
+ */
+function generateSignature(request: string): string {
+  const key = PTV_API_KEY;
+  const signature = crypto
+    .createHmac('sha1', key) // HMAC-SHA1 as specified in PTV API documentation
+    .update(request)
+    .digest('hex')
+    .toUpperCase();
+  return signature;
+}
+
+/**
+ * Build authenticated PTV API URL
+ */
+function buildPtvUrl(endpoint: string): string {
+  const request = `${endpoint}${endpoint.includes('?') ? '&' : '?'}devid=${PTV_USER_ID}`;
+  const signature = generateSignature(request);
+  return `${PTV_BASE_URL}${request}&signature=${signature}`;
+}
