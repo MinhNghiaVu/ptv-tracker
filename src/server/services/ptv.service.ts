@@ -10,7 +10,7 @@ const PTV_BASE_URL = process.env.PTV_BASE_URL ?? 'https://timetableapi.ptv.vic.g
 /**
  * Search for stops using PTV API
  */
-export async function searchStopsApi(query: string): Promise<{ stops: Stop[] }> {
+export async function getStopsApi(query: string): Promise<{ stops: Stop[] }> {
   try {
     // Check if we have API credentials
     if (!PTV_USER_ID || !PTV_API_KEY) {
@@ -27,6 +27,41 @@ export async function searchStopsApi(query: string): Promise<{ stops: Stop[] }> 
     // PTV API returns stops in data.stops array
     return {
       stops: data.stops ?? []
+    };
+
+  } catch (error) {
+    logger.error(`[PTV_SERVICE] PTV API call failed: ${error}`);
+  }
+}
+
+export async function getDeparturesApi(stopId: number, routeType?: number): Promise<{ departures: Departure[] }> {
+  try {
+    // Check if we have API credentials
+    if (!PTV_USER_ID || !PTV_API_KEY) {
+      logger.warn(`[PTV_SERVICE] No PTV API credentials found`);
+      return { departures: [] };
+    }
+
+    // Build endpoint with optional route type filter
+    let endpoint = `/v3/departures/route_type/${routeType ?? 'all'}/stop/${stopId}`;
+
+    // Add query parameters based on docs
+    const params = new URLSearchParams({
+      max_results: '20',
+      include_cancelled: 'false',
+      look_backwards: 'false',
+      expand: 'run,route,stop,direction',
+    });
+
+    endpoint += `?${params.toString()}`;
+
+    const data = await makePtvRequest(endpoint);
+
+    logger.info(`[PTV_SERVICE] PTV API returned ${data.departures?.length || 0} departures for stop ${stopId}`);
+
+    // PTV API returns departures in data.departures array
+    return {
+      departures: data.departures ?? []
     };
 
   } catch (error) {
