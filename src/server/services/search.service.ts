@@ -5,7 +5,9 @@ import { searchStops as ptvSearchStops } from "./ptv.service";
 /**
  * SEARCH STOPS
  */
-export async function searchStops(query: string): Promise<{
+export async function searchStops(
+  query: string
+): Promise<{
   stops: PtvResultStop[];
   totalCount: number;
 }> {

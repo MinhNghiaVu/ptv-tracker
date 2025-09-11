@@ -10,7 +10,11 @@ const PTV_BASE_URL = process.env.PTV_BASE_URL ?? 'https://timetableapi.ptv.vic.g
 /**
  * Search for stops using /v3/search/{search_term} endpoint
  */
-export async function searchStops(query: string): Promise<{ stops: PtvResultStop[] }> {
+export async function searchStops(
+  query: string
+): Promise<{ 
+  stops: PtvResultStop[] 
+}> {
   try {
     // Check if we have API credentials
     if (!PTV_USER_ID || !PTV_API_KEY) {
@@ -34,7 +38,13 @@ export async function searchStops(query: string): Promise<{ stops: PtvResultStop
  * Get departures for a stop using /v3/departures/route_type/{route_type}/stop/{stop_id} endpoint
  * Optionally filter by route ID
  */
-export async function getDepartures(stopId: number, routeType: number, routeId?: number): Promise<{ departures: PtvDeparture[] }> {
+export async function getDepartures(
+  stopId: number,
+  routeType: number,
+  routeId?: number
+): Promise<{
+  departures: PtvDeparture[]
+}> {
   try {
     if (!PTV_USER_ID || !PTV_API_KEY) {
       logger.warn(`[PTV_SERVICE] No PTV API credentials found`);
