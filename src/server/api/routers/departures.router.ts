@@ -34,14 +34,28 @@ export const departuresRouter = createTRPCRouter({
       const startTime = Date.now();
       try {
         logger.info(`[DEPARTURES_ROUTER] Departures request for stop: ${input.stopId}`);
-        const result = await getDeparturesController(
-          input.stopId,
-          input.routeType,
-          input.routeId
-        );
+        const result = await getDeparturesController(input.stopId, input.routeType, input.routeId);
+        const departures = (result.data ?? []).map(dep => {
+          const scheduled = dep.scheduled_departure_utc ? new Date(dep.scheduled_departure_utc) : null;
+          const estimated = dep.estimated_departure_utc ? new Date(dep.estimated_departure_utc) : scheduled;
+          const now = Date.now();
+          const minutesUntilDeparture =
+            estimated && scheduled ? Math.max(0, Math.round((estimated.getTime() - now) / 60000)) : 0;
+          return {
+            routeId: dep.route_id ?? 0,
+            routeName: "Unknown", // You can fetch from expanded routes if needed
+            directionName: "Unknown", // You can fetch from expanded directions if needed
+            scheduledDepartureUtc: dep.scheduled_departure_utc ?? "",
+            estimatedDepartureUtc: dep.estimated_departure_utc ?? dep.scheduled_departure_utc ?? "",
+            platformNumber: dep.platform_number ?? null,
+            minutesUntilDeparture,
+            isDelayed: !!(estimated && scheduled && estimated.getTime() > scheduled.getTime()),
+          };
+        });
         const duration = Date.now() - startTime;
         return {
-          ...result,
+          departures,
+          totalCount: departures.length,
           searchTime: duration,
         };
       } catch (error) {

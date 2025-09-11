@@ -15,7 +15,9 @@ export async function getDepartures(
   try {
     logger.info(`[SEARCH_SERVICE] Getting departures for stop: ${stopId}`);
     const { departures } = await ptvGetDepartures(stopId, routeType, routeId);
-    return { departures };
+    return { 
+      departures
+    };
   } catch (error) {
     logger.error(`[SEARCH_SERVICE] Departures failed for stop ${stopId}: ${error}`);
     throw new Error(`Failed to get departures: ${error}`);

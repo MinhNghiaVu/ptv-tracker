@@ -9,14 +9,12 @@ export async function searchStops(
   query: string
 ): Promise<{
   stops: PtvResultStop[];
-  totalCount: number;
 }> {
   try {
     logger.info(`[SEARCH_SERVICE] Searching stops for: "${query}"`);
     const { stops } = await ptvSearchStops(query);
     return {
-      stops,
-      totalCount: stops.length,
+      stops
     };
   } catch (error) {
     logger.error(`[SEARCH_SERVICE] Stops search failed for "${query}": ${error}`);
