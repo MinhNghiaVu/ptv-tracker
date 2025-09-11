@@ -1,13 +1,11 @@
 import { logger } from "~/utils/logger";
-import type { Stop } from "~/server/interfaces/stop.interface";
-import type { Departure } from "~/server/interfaces/departure.interface";
 import crypto from "crypto";
 import type { PtvResultStop, PtvSearchResult } from "../interfaces/ptv/ptvSearch.interface";
+import type { PtvDeparture, PtvDeparturesResponse } from "../interfaces/ptv/ptvDeparture.interface";
 
 const PTV_USER_ID = process.env.PTV_USER_ID!;
 const PTV_API_KEY = process.env.PTV_API_KEY!;
 const PTV_BASE_URL = process.env.PTV_BASE_URL ?? 'https://timetableapi.ptv.vic.gov.au';
-
 
 /**
  * Search for stops using /v3/search/{search_term} endpoint
@@ -20,7 +18,7 @@ export async function searchStops(query: string): Promise<{ stops: PtvResultStop
       return { stops: [] };
     }
     const endpoint = `/v3/search/${encodeURIComponent(query)}`;
-    const data: PtvSearchResult = await makePtvRequest(endpoint);
+    const data: PtvSearchResult = await makePtvRequest<PtvSearchResult>(endpoint);
     logger.info(`[PTV_SERVICE] PTV API returned ${data.stops?.length ?? 0} stops for query "${query}"`);
     return {
       stops: data.stops ?? [],
@@ -32,19 +30,22 @@ export async function searchStops(query: string): Promise<{ stops: PtvResultStop
   }
 }
 
-
-export async function getDeparturesApi(stopId: number, routeType?: number): Promise<{ departures: Departure[] }> {
+/**
+ * Get departures for a stop using /v3/departures/route_type/{route_type}/stop/{stop_id} endpoint
+ * Optionally filter by route ID
+ */
+export async function getDepartures(stopId: number, routeType: number, routeId?: number): Promise<{ departures: PtvDeparture[] }> {
   try {
-    // Check if we have API credentials
     if (!PTV_USER_ID || !PTV_API_KEY) {
       logger.warn(`[PTV_SERVICE] No PTV API credentials found`);
       return { departures: [] };
     }
 
-    // Build endpoint with optional route type filter
-    let endpoint = `/v3/departures/route_type/${routeType ?? 'all'}/stop/${stopId}`;
+    let endpoint = `/v3/departures/route_type/${routeType}/stop/${stopId}`;
+    if (routeId !== undefined) {
+      endpoint += `/route/${routeId}`;
+    }
 
-    // Add query parameters based on docs
     const params = new URLSearchParams({
       max_results: '20',
       include_cancelled: 'false',
@@ -54,24 +55,24 @@ export async function getDeparturesApi(stopId: number, routeType?: number): Prom
 
     endpoint += `?${params.toString()}`;
 
-    const data = await makePtvRequest(endpoint);
+    const data: PtvDeparturesResponse = await makePtvRequest<PtvDeparturesResponse>(endpoint);
 
-    logger.info(`[PTV_SERVICE] PTV API returned ${data.departures?.length || 0} departures for stop ${stopId}`);
+    logger.info(`[PTV_SERVICE] PTV API returned ${data.departures?.length ?? 0} departures for stop ${stopId}`);
 
-    // PTV API returns departures in data.departures array
     return {
       departures: data.departures ?? []
     };
 
   } catch (error) {
     logger.error(`[PTV_SERVICE] PTV API call failed: ${error}`);
+    return { departures: [] };
   }
 }
 
 /**
- * Make authenticated request to PTV API
+ * Make authenticated request to PTV API, updated to use different return types
  */
-async function makePtvRequest(endpoint: string): Promise<PtvSearchResult> {
+async function makePtvRequest<T>(endpoint: string): Promise<T> {
   const url = buildPtvUrl(endpoint);
   
   logger.info(`[PTV_SERVICE] Making request to: ${endpoint}`);
@@ -89,7 +90,7 @@ async function makePtvRequest(endpoint: string): Promise<PtvSearchResult> {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-  const data: PtvSearchResult = await response.json();
+  const data: T = await response.json();
   return data;
 }
 

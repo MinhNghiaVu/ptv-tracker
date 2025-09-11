@@ -1,5 +1,5 @@
-import type { Stop } from "./stop.interface";
-import type { Departure } from "./departure.interface";
+// import type { Stop } from "./stop.interface";
+// import type { Departure } from "./departure.interface";
 
 export interface IResponse<T> {
   success: boolean;
@@ -7,12 +7,12 @@ export interface IResponse<T> {
   data?: T
 };
 
-export interface StopsResponse {
-  stops: Stop[];
-  totalCount: number
-}
+// export interface StopsResponse {
+//   stops: Stop[];
+//   totalCount: number
+// }
 
-export interface DeparturesResponse {
-  departures: Departure[];
-  totalCount: number;
-}
+// export interface DeparturesResponse {
+//   departures: Departure[];
+//   totalCount: number;
+// }
