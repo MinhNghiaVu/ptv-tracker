@@ -2,37 +2,36 @@ import { logger } from "~/utils/logger";
 import type { Stop } from "~/server/interfaces/stop.interface";
 import type { Departure } from "~/server/interfaces/departure.interface";
 import crypto from "crypto";
+import type { PtvResultStop, PtvSearchResult } from "../interfaces/ptv/ptvSearch.interface";
 
 const PTV_USER_ID = process.env.PTV_USER_ID!;
 const PTV_API_KEY = process.env.PTV_API_KEY!;
 const PTV_BASE_URL = process.env.PTV_BASE_URL ?? 'https://timetableapi.ptv.vic.gov.au';
 
+
 /**
- * Search for stops using PTV API
+ * Search for stops using /v3/search/{search_term} endpoint
  */
-export async function getStopsApi(query: string): Promise<{ stops: Stop[] }> {
+export async function searchStops(query: string): Promise<{ stops: PtvResultStop[] }> {
   try {
     // Check if we have API credentials
     if (!PTV_USER_ID || !PTV_API_KEY) {
       logger.warn(`[PTV_SERVICE] No PTV API credentials found`);
       return { stops: [] };
     }
-
-    // Build endpoint with query
     const endpoint = `/v3/search/${encodeURIComponent(query)}`;
-    const data = await makePtvRequest(endpoint);
-    
-    logger.info(`[PTV_SERVICE] PTV API returned ${data.stops?.length ?? 0} stops for "${query}"`);
-    
-    // PTV API returns stops in data.stops array
+    const data: PtvSearchResult = await makePtvRequest(endpoint);
+    logger.info(`[PTV_SERVICE] PTV API returned ${data.stops?.length ?? 0} stops for query "${query}"`);
     return {
-      stops: data.stops ?? []
+      stops: data.stops ?? [],
     };
-
-  } catch (error) {
+  }
+  catch (error) {
     logger.error(`[PTV_SERVICE] PTV API call failed: ${error}`);
+    return { stops: [] };
   }
 }
+
 
 export async function getDeparturesApi(stopId: number, routeType?: number): Promise<{ departures: Departure[] }> {
   try {
@@ -72,7 +71,7 @@ export async function getDeparturesApi(stopId: number, routeType?: number): Prom
 /**
  * Make authenticated request to PTV API
  */
-async function makePtvRequest(endpoint: string): Promise<any> {
+async function makePtvRequest(endpoint: string): Promise<PtvSearchResult> {
   const url = buildPtvUrl(endpoint);
   
   logger.info(`[PTV_SERVICE] Making request to: ${endpoint}`);
@@ -89,7 +88,8 @@ async function makePtvRequest(endpoint: string): Promise<any> {
     throw new Error(`PTV API error: ${response.status} ${response.statusText}`);
   }
 
-  const data = await response.json();
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+  const data: PtvSearchResult = await response.json();
   return data;
 }
 
